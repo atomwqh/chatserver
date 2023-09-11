@@ -17,10 +17,10 @@ using namespace muduo::net;
 #include "json.hpp"
 using json = nlohmann::json;
 
-// 表示处理消息的事件回调方法类型
+// 表示处理消息的事件回调方法类型，事件处理器，
 using MsgHandler = std::function<void(const TcpConnectionPtr &conn, json &js, Timestamp)>;
 
-// 聊天服务器业务类
+// 聊天服务器业务类，业务相关代码
 class ChatService
 {
 public:
@@ -54,7 +54,7 @@ public:
 private:
     ChatService();
 
-    // 存储消息id和其对应的业务处理方法
+    // 存储消息id和其对应的业务处理方法（消息处理器的一个表）
     unordered_map<int, MsgHandler> _msgHandlerMap;
     // 存储在线用户的通信连接
     unordered_map<int, TcpConnectionPtr> _userConnMap;

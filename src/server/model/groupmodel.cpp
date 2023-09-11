@@ -41,7 +41,7 @@ void GroupModel::addGroup(int userid, int groupid, string role)
 vector<Group> GroupModel::queryGroups(int userid)
 {
     /*
-    1. 先根据userid在groupuser表中查询出该用户所属的群组信息
+    1. 先根据userid在groupuser表中查询出该用户所属的群组信息（尽量一次查询结束，不要多次重复查询）
     2. 在根据群组信息，查询属于该群组的所有用户的userid，并且和user表进行多表联合查询，查出用户的详细信息
     */
     char sql[1024] = {0};

@@ -4,7 +4,7 @@
 #include <signal.h>
 using namespace std;
 
-// 处理服务器ctrl+c结束后，重置user的状态信息
+// 处理服务器ctrl+c强制结束后，重置user的状态信息，全部下线，调用之前写的reset方法
 void resetHandler(int)
 {
     ChatService::instance()->reset();

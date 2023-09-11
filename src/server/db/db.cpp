@@ -7,7 +7,7 @@ static string user = "root";
 static string password = "123456";
 static string dbname = "chat";
 
-// 初始化数据库连接
+// 初始化数据库连接,开辟资源空间
 MySQL::MySQL()
 {
     _conn = mysql_init(nullptr);
@@ -61,12 +61,12 @@ MYSQL_RES *MySQL::query(string sql)
                  << sql << "查询失败!";
         return nullptr;
     }
-    
+
     return mysql_use_result(_conn);
 }
 
 // 获取连接
-MYSQL* MySQL::getConnection()
+MYSQL *MySQL::getConnection()
 {
     return _conn;
 }

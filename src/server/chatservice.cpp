@@ -5,7 +5,7 @@
 using namespace std;
 using namespace muduo;
 
-// 获取单例对象的接口函数
+// 获取单例对象的接口函数,线程安全
 ChatService *ChatService::instance()
 {
     static ChatService service;
@@ -15,7 +15,8 @@ ChatService *ChatService::instance()
 // 注册消息以及对应的Handler回调操作
 ChatService::ChatService()
 {
-    // 用户基本业务管理相关事件处理回调注册
+    // 将获得的消息和对应的事件对应
+    //  用户基本业务管理相关事件处理回调注册
     _msgHandlerMap.insert({LOGIN_MSG, std::bind(&ChatService::login, this, _1, _2, _3)});
     _msgHandlerMap.insert({LOGINOUT_MSG, std::bind(&ChatService::loginout, this, _1, _2, _3)});
     _msgHandlerMap.insert({REG_MSG, std::bind(&ChatService::reg, this, _1, _2, _3)});
@@ -45,12 +46,13 @@ void ChatService::reset()
 // 获取消息对应的处理器
 MsgHandler ChatService::getHandler(int msgid)
 {
-    // 记录错误日志，msgid没有对应的事件处理回调
-    auto it = _msgHandlerMap.find(msgid);
+    // 记录错误日志，msgid没有对应的事件处理回调，找不到对应事件
+    auto it = _msgHandlerMap.find(msgid); // 没有的话会自动生成一个
     if (it == _msgHandlerMap.end())
     {
-        // 返回一个默认的处理器，空操作
-        return [=](const TcpConnectionPtr &conn, json &js, Timestamp) {
+        // 返回一个默认的处理器，空操作，这里是lamda表达式
+        return [=](const TcpConnectionPtr &conn, json &js, Timestamp)
+        {
             LOG_ERROR << "msgid:" << msgid << " can not find handler!";
         };
     }
@@ -60,7 +62,7 @@ MsgHandler ChatService::getHandler(int msgid)
     }
 }
 
-// 处理登录业务  id  pwd   pwd
+// 处理登录业务  id  pwd   pwd 业务层操作的都是对象，数据层都是操作，还是业务和数据拆分开来
 void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
     int id = js["id"].get<int>();
@@ -80,16 +82,18 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
         }
         else
         {
-            // 登录成功，记录用户连接信息
+            // 登录成功，记录用户连接信息，这里是为了聊天项目，这里需要考虑线程安全问题
             {
                 lock_guard<mutex> lock(_connMutex);
                 _userConnMap.insert({id, conn});
+                // 析构函数自动释放锁，锁的范围不能太大
             }
 
             // id用户登录成功后，向redis订阅channel(id)
-            _redis.subscribe(id); 
+            _redis.subscribe(id);
 
             // 登录成功，更新用户状态信息 state offline=>online
+            // 异常退出 就是要时长刷新
             user.setState("online");
             _userModel.updateState(user);
 
@@ -98,6 +102,7 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
             response["errno"] = 0;
             response["id"] = user.getId();
             response["name"] = user.getName();
+
             // 查询该用户是否有离线消息
             vector<string> vec = _offlineMsgModel.query(id);
             if (!vec.empty())
@@ -210,18 +215,19 @@ void ChatService::loginout(const TcpConnectionPtr &conn, json &js, Timestamp tim
     }
 
     // 用户注销，相当于就是下线，在redis中取消订阅通道
-    _redis.unsubscribe(userid); 
+    _redis.unsubscribe(userid);
 
     // 更新用户的状态信息
     User user(userid, "", "", "offline");
     _userModel.updateState(user);
 }
 
-// 处理客户端异常退出
+// 处理客户端异常退出,这里要注意可能在线状态需考虑线程安全
 void ChatService::clientCloseException(const TcpConnectionPtr &conn)
 {
     User user;
     {
+        // map表迭代器删除信息
         lock_guard<mutex> lock(_connMutex);
         for (auto it = _userConnMap.begin(); it != _userConnMap.end(); ++it)
         {
@@ -236,7 +242,7 @@ void ChatService::clientCloseException(const TcpConnectionPtr &conn)
     }
 
     // 用户注销，相当于就是下线，在redis中取消订阅通道
-    _redis.unsubscribe(user.getId()); 
+    _redis.unsubscribe(user.getId());
 
     // 更新用户的状态信息
     if (user.getId() != -1)
@@ -250,19 +256,19 @@ void ChatService::clientCloseException(const TcpConnectionPtr &conn)
 void ChatService::oneChat(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
     int toid = js["toid"].get<int>();
-
+    // 访问连接信息表就要保证线程安全
     {
         lock_guard<mutex> lock(_connMutex);
         auto it = _userConnMap.find(toid);
         if (it != _userConnMap.end())
         {
-            // toid在线，转发消息   服务器主动推送消息给toid用户
+            // toid在线，转发消息   服务器主动推送消息给toid用户（消息中转）
             it->second->send(js.dump());
             return;
         }
     }
 
-    // 查询toid是否在线 
+    // 查询toid是否在线
     User user = _userModel.query(toid);
     if (user.getState() == "online")
     {
@@ -284,7 +290,7 @@ void ChatService::addFriend(const TcpConnectionPtr &conn, json &js, Timestamp ti
     _friendModel.insert(userid, friendid);
 }
 
-// 创建群组业务
+// 创建群组业务，群里面人的业务消息
 void ChatService::createGroup(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
     int userid = js["id"].get<int>();
@@ -326,7 +332,7 @@ void ChatService::groupChat(const TcpConnectionPtr &conn, json &js, Timestamp ti
         }
         else
         {
-            // 查询toid是否在线 
+            // 查询toid是否在线
             User user = _userModel.query(id);
             if (user.getState() == "online")
             {

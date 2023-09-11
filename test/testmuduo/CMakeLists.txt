@@ -1,3 +1,5 @@
+# 配置编译选项 增加了一个-g后面可以调试
+# set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -g)
 # 配置头文件搜索路径
 # include_directories()
 # 配置库文件搜索路径
@@ -6,7 +8,7 @@
 # 设置需要编译的源文件列表
 set(SRC_LIST ./muduo_server.cpp)
 
-# 设置可执行文件最终存储的路径
+# 设置可执行文件最终存储的路径 工程根目录下的bin文件夹
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 
 # 把.指定路径下的所有源文件名字放入变量名SRC_LIST里面

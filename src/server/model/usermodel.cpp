@@ -73,7 +73,7 @@ bool UserModel::updateState(User user)
     return false;
 }
 
-// 重置用户的状态信息
+// 重置用户的状态信息，全部下线就完事了
 void UserModel::resetState()
 {
     // 1.组装sql语句

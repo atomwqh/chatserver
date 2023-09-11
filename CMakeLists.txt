@@ -1,3 +1,5 @@
+#项目根目录下的Cmake文件
+#版本号
 cmake_minimum_required(VERSION 3.0)
 project(chat)
 
